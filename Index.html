@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#166534">
+  <title>WMS Scanner CIKANDE2</title>
+
+  <!-- Scanner engine: QR + common 1D/2D barcodes -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(ellipse at top, #14532d 0%, #052e16 48%, #022c22 100%);
+      color: #fff;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 18px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 520px;
+      padding: 8px 0 24px;
+    }
+
+    .header {
+      text-align: center;
+      padding: 10px 8px 16px;
+    }
+
+    .logo {
+      width: 58px;
+      height: 58px;
+      margin: 0 auto 10px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #22c55e, #15803d 58%, #065f46);
+      box-shadow: 0 10px 30px rgba(0,0,0,.28);
+      font-size: 27px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: .5px;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: #bbf7d0;
+      font-size: 13px;
+    }
+
+    .card {
+      background: rgba(6, 40, 24, .72);
+      border: 1px solid rgba(134, 239, 172, .22);
+      border-radius: 22px;
+      padding: 16px;
+      box-shadow: 0 18px 48px rgba(0,0,0,.32), 0 0 28px rgba(34,197,94,.08);
+      backdrop-filter: blur(12px);
+    }
+
+    .target {
+      text-align: center;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: #bbf7d0;
+    }
+
+    .target strong {
+      color: #fff;
+      text-transform: uppercase;
+    }
+
+    #reader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 18px;
+      background: #000;
+    }
+
+    #reader video {
+      border-radius: 18px !important;
+    }
+
+    #reader__dashboard_section_csr button,
+    #reader__dashboard_section_swaplink {
+      font-size: 14px !important;
+    }
+
+    .status {
+      margin-top: 14px;
+      min-height: 22px;
+      text-align: center;
+      color: #bbf7d0;
+      font-size: 13px;
+    }
+
+    .result {
+      display: none;
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(34,197,94,.14);
+      border: 1px solid rgba(74,222,128,.42);
+      word-break: break-word;
+    }
+
+    .result-label {
+      color: #86efac;
+      font-size: 11px;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .result-value {
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .btn {
+      width: 100%;
+      margin-top: 12px;
+      min-height: 46px;
+      border: 0;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: linear-gradient(135deg, #15803d, #166534);
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(22,101,52,.28);
+      transition: transform .18s ease, filter .18s ease;
+    }
+
+    .btn-secondary:hover { filter: brightness(1.08); }
+    .btn-secondary:active { transform: scale(.99); }
+    .btn:focus-visible { outline: 2px solid #86efac; outline-offset: 3px; }
+
+    .error {
+      color: #fecaca;
+      text-align: center;
+      line-height: 1.5;
+      padding: 10px;
+    }
+
+    .hint {
+      text-align: center;
+      color: #86efac;
+      font-size: 11px;
+      margin-top: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="logo">▣</div>
+      <h1>WMS CIKANDE2</h1>
+      <div class="subtitle">Scan QR / Barcode untuk WMS CIKANDE2</div>
+    </header>
+
+    <section class="card">
+      <div class="target">
+        Scan: <strong id="targetLabel">—</strong>
+      </div>
+
+      <div id="reader"></div>
+
+      <div id="status" class="status">Memulai kamera...</div>
+
+      <div id="result" class="result">
+        <div class="result-label">Hasil Scan</div>
+        <div id="resultValue" class="result-value"></div>
+      </div>
+
+      <button id="backBtn" class="btn btn-secondary" type="button" style="display:none;">
+        Kembali ke WMS
+      </button>
+
+      <div class="hint">
+        Izinkan akses kamera saat browser meminta permission.
+        Setelah barcode berhasil terbaca, hasil akan dikirim kembali ke WMS.
+      </div>
+    </section>
+  </main>
+
+<script>
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const target = params.get('target');
+  const callback = params.get('callback');
+  const serial = params.get('serial') || '';
+
+  const targetLabel = document.getElementById('targetLabel');
+  const statusEl = document.getElementById('status');
+  const resultEl = document.getElementById('result');
+  const resultValueEl = document.getElementById('resultValue');
+  const backBtn = document.getElementById('backBtn');
+
+  let scanner = null;
+  let finished = false;
+
+  if (target === 'serial') {
+    targetLabel.textContent = 'Serial Number Pallet';
+  } else if (target === 'location') {
+    targetLabel.textContent = 'Lokasi Tujuan';
+  } else if (target === 'picking') {
+    targetLabel.textContent = 'Picking List (PL)';
+  } else if (target === 'rack') {
+    targetLabel.textContent = 'Cek Rak / Lokasi';
+  } else if (target === 'adjustment') {
+    targetLabel.textContent = 'Adjustment - Serial / Lokasi';
+  } else {
+    targetLabel.textContent = 'Tidak diketahui';
+  }
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  function showError(message) {
+    document.getElementById('reader').innerHTML =
+      '<div class="error">' + message + '</div>';
+    setStatus('');
+    backBtn.style.display = 'block';
+  }
+
+  function validCallbackUrl(url) {
+    try {
+      const u = new URL(url);
+      return u.protocol === 'https:' &&
+             u.hostname === 'script.google.com' &&
+             u.pathname.startsWith('/macros/s/');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function returnToWms(value) {
+    if (finished) return;
+    finished = true;
+
+    const cleanValue = String(value || '').trim();
+    if (!cleanValue) {
+      finished = false;
+      return;
+    }
+
+    resultEl.style.display = 'block';
+    resultValueEl.textContent = cleanValue;
+    setStatus('Scan berhasil. Mengembalikan hasil ke WMS...');
+
+    if (!validCallbackUrl(callback)) {
+      setStatus('');
+      document.getElementById('reader').innerHTML =
+        '<div class="error">Callback WMS tidak valid.</div>';
+      backBtn.style.display = 'block';
+      finished = false;
+      return;
+    }
+
+    // Jangan menentukan halaman kembali berdasarkan target scanner.
+    // Halaman asal sudah tersimpan di callback:
+    // Racking -> page=mobile_racking
+    // Stock   -> page=mobile_stock
+    // Picking -> page=mobile_picking
+    // Adjustment -> page=mobile_adjustment
+    // Dengan begitu target=serial tidak akan salah masuk ke Stock.
+    const returnUrl = new URL(callback);
+    returnUrl.searchParams.set('scan', cleanValue);
+    returnUrl.searchParams.set('target', target);
+    // Saat scan lokasi, bawa kembali serial pallet yang sudah divalidasi.
+    if (target === 'location' && serial) {
+      returnUrl.searchParams.set('serial', serial);
+    }
+
+    setTimeout(function () {
+      window.location.href = returnUrl.toString();
+    }, 350);
+  }
+
+  function onScanSuccess(decodedText) {
+    if (finished) return;
+
+    try {
+      if (scanner) {
+        scanner.stop().catch(function () {});
+      }
+    } catch (e) {}
+
+    returnToWms(decodedText);
+  }
+
+  function onScanFailure() {
+    // Scan belum berhasil; tidak perlu menampilkan error berulang.
+  }
+
+  function startScanner() {
+    if (!target || (target !== 'serial' && target !== 'location' && target !== 'picking' && target !== 'rack' && target !== 'adjustment')) {
+      showError('Target scanner tidak valid.');
+      return;
+    }
+
+    if (!callback || !validCallbackUrl(callback)) {
+      showError('URL kembali ke WMS tidak valid.');
+      return;
+    }
+
+    if (!window.Html5Qrcode) {
+      showError('Engine scanner gagal dimuat. Periksa koneksi internet lalu coba lagi.');
+      return;
+    }
+
+    scanner = new Html5Qrcode('reader');
+
+    const config = {
+      fps: 10,
+      qrbox: function (viewfinderWidth, viewfinderHeight) {
+        const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.72);
+        return { width: Math.max(220, Math.min(size, 320)),
+                 height: Math.max(220, Math.min(size, 320)) };
+      },
+      aspectRatio: 1.0,
+      rememberLastUsedCamera: true
+    };
+
+    setStatus('Meminta izin kamera...');
+
+    scanner.start(
+      { facingMode: { exact: 'environment' } },
+      config,
+      onScanSuccess,
+      onScanFailure
+    ).then(function () {
+      setStatus('Arahkan kamera ke QR / Barcode.');
+    }).catch(function (firstError) {
+      // Beberapa perangkat tidak menerima facingMode exact.
+      try {
+        scanner.clear().catch(function () {});
+
+        scanner = new Html5Qrcode('reader');
+
+        scanner.start(
+          { facingMode: 'environment' },
+          config,
+          onScanSuccess,
+          onScanFailure
+        ).then(function () {
+          setStatus('Arahkan kamera ke QR / Barcode.');
+        }).catch(function (secondError) {
+          console.error(firstError);
+          console.error(secondError);
+          showError(
+            'Kamera tidak dapat dibuka.<br><br>' +
+            'Pastikan permission kamera di browser sudah diizinkan, ' +
+            'dan halaman dibuka melalui HTTPS.'
+          );
+        });
+      } catch (e) {
+        console.error(e);
+        showError('Kamera tidak dapat dibuka.');
+      }
+    });
+  }
+
+  backBtn.addEventListener('click', function () {
+    if (validCallbackUrl(callback)) {
+      // Kembali persis ke halaman asal yang diberikan oleh callback.
+      // Jangan menentukan halaman berdasarkan target scanner.
+      const u = new URL(callback);
+      window.location.href = u.toString();
+    } else {
+      history.back();
+    }
+  });
+
+  startScanner();
+})();
+</script>
+</body>
+</html>
